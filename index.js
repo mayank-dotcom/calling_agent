@@ -60,6 +60,26 @@ app.delete('/user/:userId', async (c) => {
   }
 });
 
+// Endpoint to register a bot (database only user)
+app.post('/register-bot', async (c) => {
+  try {
+    const { name, userId } = await c.req.json();
+    if (!name || !userId) return c.json({ error: 'Missing name or userId' }, 400);
+
+    await User.findOneAndUpdate(
+      { userId },
+      { userId, name, isOnline: true, lastSeen: Date.now() },
+      { upsert: true, new: true }
+    );
+
+    io.emit('user-list-updated', Array.from(activeUsers.keys()));
+    return c.json({ message: 'Bot registered successfully' });
+  } catch (err) {
+    console.error('Bot Registration Error:', err);
+    return c.json({ error: 'Failed to register bot' }, 500);
+  }
+});
+
 const httpServer = createServer(app.fetch)
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] }
