@@ -80,23 +80,29 @@ app.post('/register-bot', async (c) => {
   }
 });
 
-const httpServer = createServer(app.fetch)
+const port = process.env.PORT || 3000
+
+// Correct way to integrate Hono with Socket.io using node-server
+const httpServer = serve({
+  fetch: app.fetch,
+  port
+}, (info) => {
+  console.log(`✅ Server is running on port ${info.port}`);
+});
+
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] }
-})
+});
 
 const activeUsers = new Map();
-
+// ... (rest of the socket logic)
 io.on('connection', (socket) => {
+  // Transfer all existing socket.on handlers here
   socket.on('register', async (data) => {
-    // Handling both old (string) and new (object) registration
     const userId = typeof data === 'string' ? data : data.userId;
     const name = typeof data === 'string' ? data : (data.name || data.userId);
-
     activeUsers.set(userId, socket.id);
     console.log(`User Registered: ${userId} (${name})`);
-
-    // Sync with MongoDB if connected
     if (MONGO_URI) {
       try {
         await User.findOneAndUpdate(
@@ -108,7 +114,6 @@ io.on('connection', (socket) => {
         console.error('Error updating User in DB:', err);
       }
     }
-
     io.emit('user-list-updated', Array.from(activeUsers.keys()));
   });
 
@@ -137,7 +142,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle Reject
   socket.on('reject-call', ({ targetId }) => {
     const targetSocketId = activeUsers.get(targetId);
     if (targetSocketId) {
@@ -145,7 +149,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle Hangup
   socket.on('hangup', ({ targetId }) => {
     const targetSocketId = activeUsers.get(targetId);
     if (targetSocketId) {
@@ -158,8 +161,6 @@ io.on('connection', (socket) => {
       if (socketId === socket.id) {
         activeUsers.delete(userId);
         console.log(`User Disconnected: ${userId}`);
-
-        // Update MongoDB if connected
         if (MONGO_URI) {
           try {
             await User.findOneAndUpdate({ userId }, { isOnline: false, lastSeen: Date.now() });
@@ -172,9 +173,4 @@ io.on('connection', (socket) => {
     }
     io.emit('user-list-updated', Array.from(activeUsers.keys()));
   });
-})
-
-const port = process.env.PORT || 3000
-httpServer.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port} at 0.0.0.0`);
 });
