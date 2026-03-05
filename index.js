@@ -16,8 +16,8 @@ if (MONGO_URI) {
 }
 
 const UserSchema = new mongoose.Schema({
-  userId: { type: String, unique: true, required: true },
   name: { type: String, required: true },
+  userId: { type: String, unique: true, required: true },
   isOnline: { type: Boolean, default: false },
   lastSeen: { type: Date, default: Date.now }
 });
@@ -33,37 +33,28 @@ app.get('/users', (c) => {
   return c.json({ online_users: Array.from(activeUsers.keys()) })
 })
 
-// Search users by name
-app.get('/search', async (c) => {
-  const name = c.req.query('name');
-  try {
-    const users = await User.find({ name: new RegExp(name, 'i') });
-    return c.json(users);
-  } catch (err) {
-    return c.json({ error: 'Search failed' }, 500);
-  }
-})
-
-// Delete user by userId
-app.delete('/users/:userId', async (c) => {
-  const userId = c.req.param('userId');
-  try {
-    await User.findOneAndDelete({ userId });
-    return c.json({ success: true, message: 'User deleted' });
-  } catch (err) {
-    return c.json({ error: 'Delete failed' }, 500);
-  }
-})
-
 // Endpoint to list all registered users from DB
 app.get('/all-users', async (c) => {
   try {
-    const users = await User.find({}, 'userId name isOnline lastSeen');
+    const users = await User.find({}, 'name userId isOnline lastSeen');
     return c.json(users);
   } catch (err) {
     return c.json({ error: 'Database error' }, 500);
   }
 })
+
+// Endpoint to delete a user
+app.delete('/user/:userId', async (c) => {
+  const userId = c.req.param('userId');
+  try {
+    await User.findOneAndDelete({ userId });
+    activeUsers.delete(userId);
+    io.emit('user-list-updated', Array.from(activeUsers.keys()));
+    return c.json({ message: 'User deleted' });
+  } catch (err) {
+    return c.json({ error: 'Failed to delete user' }, 500);
+  }
+});
 
 const httpServer = createServer(app.fetch)
 const io = new Server(httpServer, {
@@ -73,9 +64,13 @@ const io = new Server(httpServer, {
 const activeUsers = new Map();
 
 io.on('connection', (socket) => {
-  socket.on('register', async ({ userId, name }) => {
+  socket.on('register', async (data) => {
+    // Handling both old (string) and new (object) registration
+    const userId = typeof data === 'string' ? data : data.userId;
+    const name = typeof data === 'string' ? data : (data.name || data.userId);
+
     activeUsers.set(userId, socket.id);
-    console.log(`User Registered: ${name} (${userId})`);
+    console.log(`User Registered: ${userId} (${name})`);
 
     // Sync with MongoDB if connected
     if (MONGO_URI) {
