@@ -4,8 +4,10 @@ import { Hono } from 'hono'
 import { Server } from 'socket.io'
 import { createServer } from 'http'
 import mongoose from 'mongoose'
+import { cors } from 'hono/cors'
 
 const app = new Hono()
+app.use('*', cors())
 
 // ----- MONGODB SETUP -----
 const MONGO_URI = process.env.MONGO_URI || '';
@@ -37,8 +39,10 @@ app.get('/users', (c) => {
 app.get('/all-users', async (c) => {
   try {
     const users = await User.find({}, 'name userId isOnline lastSeen');
+    console.log(`Fetching all users: Found ${users.length} users`);
     return c.json(users);
   } catch (err) {
+    console.error('Database Fetch Error:', err);
     return c.json({ error: 'Database error' }, 500);
   }
 })
