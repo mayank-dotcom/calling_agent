@@ -40,11 +40,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('answer', ({ answer, targetId }) => {
-    io.to(targetId).emit('answer', { answer });
+    const targetSocketId = activeUsers.get(targetId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('answer', { answer });
+    }
   });
 
   socket.on('ice-candidate', ({ candidate, targetId }) => {
-    io.to(targetId).emit('ice-candidate', { candidate });
+    const targetSocketId = activeUsers.get(targetId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('ice-candidate', { candidate });
+    }
   });
 
   // Handle Reject
