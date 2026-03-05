@@ -24,6 +24,8 @@ io.on('connection', (socket) => {
   socket.on('register', (userId) => {
     activeUsers.set(userId, socket.id);
     console.log(`User Registered: ${userId}`);
+    // Emit current user list to all
+    io.emit('user-list-updated', Array.from(activeUsers.keys()));
   });
 
   socket.on('offer', ({ offer, targetId }) => {
@@ -62,11 +64,16 @@ io.on('connection', (socket) => {
     for (const [userId, socketId] of activeUsers.entries()) {
       if (socketId === socket.id) {
         activeUsers.delete(userId);
+        console.log(`User Disconnected: ${userId}`);
         break;
       }
     }
+    io.emit('user-list-updated', Array.from(activeUsers.keys()));
   });
 })
 
 const port = process.env.PORT || 3000
-serve({ fetch: app.fetch, port })
+httpServer.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+
