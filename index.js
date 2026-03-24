@@ -156,6 +156,59 @@ io.on('connection', (socket) => {
     }
   });
 
+  // --- REMOTE SCREEN CONTROL LOGIC ---
+  socket.on('request-screen-control', ({ targetId, requesterId }) => {
+    const targetSocketId = activeUsers.get(targetId);
+    if (targetSocketId) {
+      // Find the requester's UID if not provided
+      let finalRequesterId = requesterId;
+      if (!finalRequesterId) {
+        for (const [uid, sid] of activeUsers.entries()) {
+          if (sid === socket.id) { finalRequesterId = uid; break; }
+        }
+      }
+      console.log(`[Signaling] Control request from ${finalRequesterId} to ${targetId}`);
+      io.to(targetSocketId).emit('request-screen-control', { requesterId: finalRequesterId });
+    }
+  });
+
+  socket.on('screen-control-sdp', ({ sdp, targetId, type }) => {
+    const targetSocketId = activeUsers.get(targetId) || (Array.from(activeUsers.values()).includes(targetId) ? targetId : null);
+    if (targetSocketId) {
+      let senderUserId = null;
+      for (const [uid, sid] of activeUsers.entries()) {
+        if (sid === socket.id) { senderUserId = uid; break; }
+      }
+      console.log(`[Signaling] Forwarding SDP ${type} from ${senderUserId || socket.id} to ${targetId}`);
+      io.to(targetSocketId).emit('screen-control-sdp', { sdp, type, senderId: senderUserId || socket.id });
+    }
+  });
+  
+  socket.on('screen-control-ice', ({ candidate, targetId }) => {
+    const targetSocketId = activeUsers.get(targetId) || (Array.from(activeUsers.values()).includes(targetId) ? targetId : null);
+    if (targetSocketId) {
+      let senderUserId = null;
+      for (const [uid, sid] of activeUsers.entries()) {
+        if (sid === socket.id) { senderUserId = uid; break; }
+      }
+      io.to(targetSocketId).emit('screen-control-ice', { candidate, senderId: senderUserId || socket.id });
+    }
+  });
+
+  socket.on('remote-input', ({ targetId, input }) => {
+    const targetSocketId = activeUsers.get(targetId) || (Array.from(activeUsers.values()).includes(targetId) ? targetId : null);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('remote-input', { input });
+    }
+  });
+
+  socket.on('log-update', ({ message, type }) => {
+    // Broadcast logs to all connected clients for now (simple approach)
+    // In production, you might want to filter by userId or room
+    io.emit('log-update', { message, type, senderId: socket.id });
+  });
+  // ------------------------------------
+
   socket.on('disconnect', async () => {
     for (const [userId, socketId] of activeUsers.entries()) {
       if (socketId === socket.id) {
