@@ -202,10 +202,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('log-update', ({ message, type }) => {
+  socket.on('log-update', ({ message, type, botId }) => {
     // Broadcast logs to all connected clients for now (simple approach)
     // In production, you might want to filter by userId or room
-    io.emit('log-update', { message, type, senderId: socket.id });
+    io.emit('log-update', { message, type, senderId: socket.id, botId });
+  });
+
+  socket.on('manual-auth-required', (data) => {
+    console.log(`[Signaling] Manual auth required for ${data.botId}`);
+    io.emit('manual-auth-required', data);
+  });
+
+  socket.on('task-status', (data) => {
+    console.log(`[Signaling] Task status update: ${data.status}`);
+    io.emit('task-status', data);
   });
   // ------------------------------------
 
